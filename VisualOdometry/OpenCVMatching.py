@@ -12,7 +12,7 @@ from DroneLoc.utils.math import isRotationMatrix, rotationMatrixToEulerAngles # 
 from DroneLoc.utils.math import unit_vector, angle_vector
 
 dataset = GES_dataset()
-image_step = 20
+image_step = 1
 
 # Initiate SIFT detector
 sift = cv2.SIFT_create()
@@ -40,7 +40,7 @@ K = np.array([[fx, 0, cx],
 
 # Assumption that the camera is pointing down
 # Ignoring the geometry of objects, the ideal normal of the plane
-# on which the keypoint lie, is given bellow.
+# on which the keypoints lie, is given bellow.
 ideal_normal = np.array([0, 0, 1])
 
 
@@ -51,7 +51,7 @@ gt_transforms = [cur_transform.copy()]
 est_transforms = [cur_est_transform.copy()]
 
 # for n in range(image_step, len(dataset), image_step):
-for n in range(200, 2000, image_step):
+for n in range(image_step, 200, image_step):
 
     # Get the correct indexes of the imagest
     img_first = dataset[n-image_step]
@@ -60,18 +60,11 @@ for n in range(200, 2000, image_step):
     # Load the images as grayscale images
     first = cv2.imread(img_first['path'], cv2.IMREAD_GRAYSCALE)
     second = cv2.imread(img_second['path'], cv2.IMREAD_GRAYSCALE)
-    # second = cv2.rotate(first, cv2.ROTATE_90_CLOCKWISE)
 
     first = center_max_crop(first)
     second = center_max_crop(second)
-    # second = cv2.rotate(first, cv2.ROTATE_90_CLOCKWISE)
-    # plt.imshow(first)
-    # plt.show()
-    # plt.imshow(second)
-    # plt.show()
 
-
-    # Load the ground throuth locations
+    # Load the ground truth locations
     xgt1, ygt1, zgt1 = img_first['position']
     xanglegt1, yanglegt1, zanglegt1 = img_first['rotation']
     T1 = posrot_to_transform((img_first['position']),(img_first['rotation']))
@@ -92,11 +85,7 @@ for n in range(200, 2000, image_step):
     # print ('Transform matrix length', np.linalg.norm(T12[:3,3]))
     # print('T1 plus the transform ', T1 @ T12)
     # print('T2', T2)
-
-    # Get the position of T2 in T1
-
-
-
+    
     # Find keypoints and calculate descriptors
     kp1, ds1 = sift.detectAndCompute(first, None)
     kp2, ds2 = sift.detectAndCompute(second, None)
