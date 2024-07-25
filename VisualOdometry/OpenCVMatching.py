@@ -7,13 +7,15 @@ import sys
 sys.path.append('../')
 
 from DroneLoc.datasets.GES_dataset import GES_dataset
+from DroneLoc.datasets.VPAir_dataset import VPAir_dataset
 from DroneLoc.utils.image_trans import center_max_crop, posrot_to_transform, invert_transform, trans_path_to_xy
 from DroneLoc.utils.math import isRotationMatrix, rotationMatrixToEulerAngles # type: ignore
 from DroneLoc.utils.math import unit_vector, angle_vector
 
 dataset = GES_dataset()
-image_step = 1
+K = dataset.K
 
+image_step = 1
 # Initiate SIFT detector
 sift = cv2.SIFT_create()
 
@@ -26,23 +28,10 @@ flann = cv2.FlannBasedMatcher(index_params, search_params)
 
 MIN_MATCH_COUNT = 15
 
-# Camera calibration - Google Earth Studio - Vertical FOV 80deg
-h = 1080
-y_fov = np.deg2rad(80)
-
-cx = cy = h//2
-fy = h/(2*np.tan(y_fov/2))
-fx = fy
-
-K = np.array([[fx, 0, cx],
-              [0, fy, cy],
-              [0, 0, 1]])
-
 # Assumption that the camera is pointing down
 # Ignoring the geometry of objects, the ideal normal of the plane
 # on which the keypoints lie, is given bellow.
 ideal_normal = np.array([0, 0, 1])
-
 
 cur_transform = np.eye(4)
 cur_est_transform = np.eye(4)
@@ -58,20 +47,26 @@ for n in range(image_step, 200, image_step):
     img_second = dataset[n]
 
     # Load the images as grayscale images
+    print(img_first['path'])
     first = cv2.imread(img_first['path'], cv2.IMREAD_GRAYSCALE)
     second = cv2.imread(img_second['path'], cv2.IMREAD_GRAYSCALE)
 
-    first = center_max_crop(first)
-    second = center_max_crop(second)
+    # first = center_max_crop(first)
+    # second = center_max_crop(second)
 
     # Load the ground truth locations
     xgt1, ygt1, zgt1 = img_first['position']
     xanglegt1, yanglegt1, zanglegt1 = img_first['rotation']
+    # T1 = posrot_to_transform((img_first['position']),(img_first['rotation']), Rot=img_first['R'])
     T1 = posrot_to_transform((img_first['position']),(img_first['rotation']))
+
+    print('Gt1', T1)
 
     xgt2, ygt2, zgt2 = img_second['position']
     xanglegt2, yanglegt2, zanglegt2 = img_second['rotation']
+    # T2 = posrot_to_transform((img_second['position']),(img_second['rotation']), Rot=img_second['R'])
     T2 = posrot_to_transform((img_second['position']),(img_second['rotation']))
+
 
     T12 = invert_transform(T1) @ T2
 

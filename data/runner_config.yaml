@@ -1,0 +1,9 @@
+dataset:
+  dataloader: ours
+  dataset_path: /storage/datasets/Drone2Sat/GES_blur
+  overlap: 1
+  window_size: 2
+method:
+  method_name: superglue
+results_directory: ./results/2da53dba-4c79-42f5-a2a7-b0f2d2d01387
+run_id: 2da53dba-4c79-42f5-a2a7-b0f2d2d01387

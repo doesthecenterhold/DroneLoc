@@ -1,0 +1,4 @@
+2024-07-24 13:08:25,523 - DronePathReconstruction - INFO - Run id: 2da53dba-4c79-42f5-a2a7-b0f2d2d01387
+2024-07-24 13:17:57,127 - DronePathReconstruction - INFO - Elapsed time for Test1_Ljubljana_150m_80fov_90deg_3000: 570.2057998180389
+2024-07-24 13:26:30,566 - DronePathReconstruction - INFO - Elapsed time for Train4_Graz_150m_80fov_90deg_3000: 512.6000280380249
+2024-07-24 13:36:36,635 - DronePathReconstruction - INFO - Elapsed time for Train10_Venice_150m_80fov_90deg_3000: 605.3615581989288

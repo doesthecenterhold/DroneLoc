@@ -1,0 +1,9 @@
+
+        src_points: image0 keypoints (matched with dst_points)
+        dst_points: image1 keypoints
+        n_points0: number of computed keypoints in image0
+        n_points1: number of computed keypoints in image1
+        failure_indices: indices of the frames where the method failed
+        elapsed_time: time taken to process the sequence
+        estimated_transformation_matrices: estimated transformation matrices
+    

@@ -1,0 +1,24 @@
+device: cuda
+input_images:
+  resize_x: 640
+  resize_y: 480
+  rotation: 0
+plot: false
+superglue:
+  match_threshold: 0.2
+  sinkhorn_iterations: 20
+  weights: outdoor
+superpoint:
+  keypoint_threshold: 0.005
+  max_keypoints: -1
+  nms_radius: 4
+transformation_matrix_estimation:
+  essential:
+    confidence: 0.999999
+    max_iters: 10000
+    ransac_reproj_threshold: 1.0
+  fundamental:
+    confidence: 0.999999
+    max_iters: 10000
+    ransac_reproj_threshold: 0.1
+  method_name: homography
