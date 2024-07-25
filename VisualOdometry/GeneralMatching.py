@@ -3,6 +3,7 @@ import sys
 import cv2
 import matplotlib.pyplot as plt
 import pickle
+from scipy.spatial.transform import Rotation as RSCI
 sys.path.append('../')
 
 from DroneLoc.datasets.GES_dataset import GES_dataset
@@ -54,8 +55,14 @@ OdomT = GT0
 GT_matrices = [GT0]
 T_matrices = [OdomT]
 total_length = [0]
+lengths = []
 
-for n in range(image_step, 10, image_step):
+error_dist = []
+error_x = []
+error_y = []
+error_z = []
+
+for n in range(image_step, 3000, image_step):
 
     # Load consecutive images
     img_first = dataset[n-image_step]
@@ -69,11 +76,17 @@ for n in range(image_step, 10, image_step):
     GT01 = invert_transform(GT0) @ GT1
     gt_length = np.linalg.norm(GT01[:3,3])
     total_length.append(total_length[-1] + gt_length)
+    lengths.append(gt_length)
 
     GT_matrices.append(GT_matrices[-1] @ GT01)
 
-    print('GT relative')
-    print(GT01)
+    # print('GT relative')
+    # print(GT01)
+
+    gtr = RSCI.from_matrix(GT01[:3,:3])
+    gt_x_a, gt_y_a, gt_z_a = gtr.as_euler('XYZ', degrees=True)
+
+    print('gt angles', gt_x_a, gt_y_a, gt_z_a)
 
     # Load appropriate matched keypoints
     keys_first = src_pts[n-image_step]
@@ -81,62 +94,80 @@ for n in range(image_step, 10, image_step):
 
     ### Visualize Keypoints
     # Load actual images
-    first = cv2.imread(img_first['path']) 
-    second = cv2.imread(img_second['path'])
+    # first = cv2.imread(img_first['path']) 
+    # second = cv2.imread(img_second['path'])
 
-    # Convert from BGR to RGB to plot with plt  
-    first = cv2.cvtColor(first, cv2.COLOR_BGR2RGB)
-    second = cv2.cvtColor(second, cv2.COLOR_BGR2RGB)
+    # # Convert from BGR to RGB to plot with plt  
+    # first = cv2.cvtColor(first, cv2.COLOR_BGR2RGB)
+    # second = cv2.cvtColor(second, cv2.COLOR_BGR2RGB)
 
-    # Scale keypoints to original resolution
-    keys_first = scale_keypoints(keys_first)
-    keys_second = scale_keypoints(keys_second)
+    # # Scale keypoints to original resolution
+    # keys_first = scale_keypoints(keys_first)
+    # keys_second = scale_keypoints(keys_second)
 
-    first = draw_keypoints(first, keys_first)
-    second = draw_keypoints(second, keys_second)
+    # first = draw_keypoints(first, keys_first)
+    # second = draw_keypoints(second, keys_second)
 
-    joined_images = np.concatenate([first, second], axis=1)
-    joined_images = draw_matches(joined_images, keys_first, keys_second)
+    # joined_images = np.concatenate([first, second], axis=1)
+    # joined_images = draw_matches(joined_images, keys_first, keys_second)
 
     # E, inliers = cv2.findEssentialMat(keys_second, keys_first,K,method=cv2.RANSAC,
     #                                   prob=0.99999,threshold=1.0,maxIters=10000)
     
-    E, inliers = cv2.findEssentialMat(keys_second, keys_first,K,method=cv2.USAC_MAGSAC, threshold=0.3)
-    
+    # E, inliers = cv2.findEssentialMat(keys_second, keys_first,K,method=cv2.USAC_MAGSAC, threshold=1)
+    # num_inliers, R, T, mask_pose = cv2.recoverPose(E, keys_second[inliers.ravel() == 1], keys_first[inliers.ravel() == 1], K)
+
+    # # Input GT translation length
+    # T = T.squeeze()
+    # T = T/np.linalg.norm(T) * gt_length
+
+    # T01 = np.eye(4)
+    # T01[:3, :3] = R
+    # T01[:3, 3] = T
+
+    # # print('Estimated')
+    # # print(T01)
+
+    # tr = RSCI.from_matrix(T01[:3,:3])
+    # t_x_a, t_y_a, t_z_a = tr.as_euler('XYZ', degrees=True)
 
 
-    num_inliers, R, T, mask_pose = cv2.recoverPose(E, keys_second[inliers.ravel() == 1], keys_first[inliers.ravel() == 1], K)
+    # error_dist.append(np.linalg.norm(GT01[:3,3]-T01[:3,3]))
+    # error_x.append(abs(gt_x_a - t_x_a))
+    # error_y.append(abs(gt_y_a - t_y_a))
+    # error_z.append(abs(gt_z_a - t_z_a))
 
-    # Input GT translation length
-    T = T.squeeze()
-    T = T/np.linalg.norm(T) * gt_length
 
-    T01 = np.eye(4)
-    T01[:3, :3] = R
-    T01[:3, 3] = T
+    # print('gt angles', t_x_a, t_y_a, t_z_a)
 
-    print('Estimated')
-    print(T01)
+    # print('Essential matrix extimated with inliers ratio', np.sum(inliers)/len(inliers))
+    # # plt.imshow(joined_images)
+    # # plt.show()
 
-    print('Essential matrix extimated with inliers ratio', np.sum(inliers)/len(inliers))
-    plt.imshow(joined_images)
-    plt.show()
+    # OdomT = OdomT @ T01
 
-    OdomT = OdomT @ T01
+    # T_matrices.append(OdomT)
 
-    T_matrices.append(OdomT)
 
-gtxs, gtys, gtzs = trans_path_to_xy(GT_matrices)
-txs, tys, tzs = trans_path_to_xy(T_matrices)
-
-gtlats, gtlons, gtalts = dataset.ecef_to_lla(gtxs, gtys, gtzs)
-tlats, tlons, talts = dataset.ecef_to_lla(txs, tys, tzs)
-
-fig, axs = plt.subplots(2)
-fig.suptitle('SuperPoint + SuperGlue Essential Ljubljana 3000')
-axs[0].plot(gtlats, gtlons, color='b', label='GT')
-axs[0].plot(tlats, tlons, color='r', label='SP+SG')
-axs[1].plot(total_length, gtalts, color='b')
-axs[1].plot(total_length, talts, color='r')
-
+plt.plot(lengths)
 plt.show()
+
+plt.plot(error_x, c='r')
+plt.plot(error_y, c='b')
+plt.plot(error_z, c='g')
+plt.show()
+
+# gtxs, gtys, gtzs = trans_path_to_xy(GT_matrices)
+# txs, tys, tzs = trans_path_to_xy(T_matrices)
+
+# gtlats, gtlons, gtalts = dataset.ecef_to_lla(gtxs, gtys, gtzs)
+# tlats, tlons, talts = dataset.ecef_to_lla(txs, tys, tzs)
+
+# fig, axs = plt.subplots(2)
+# fig.suptitle('SuperPoint + SuperGlue Essential Ljubljana 3000')
+# axs[0].plot(gtlats, gtlons, color='b', label='GT')
+# axs[0].plot(tlats, tlons, color='r', label='SP+SG')
+# axs[1].plot(total_length, gtalts, color='b')
+# axs[1].plot(total_length, talts, color='r')
+
+# plt.show()

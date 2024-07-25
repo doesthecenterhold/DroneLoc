@@ -4,6 +4,10 @@ import pyproj
 import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
+from pytransform3d import rotations as pr
+from pytransform3d import transformations as pt
+from pytransform3d.transform_manager import TransformManager
+import shutil
 sys.path.append('../')
 
 from DroneLoc.utils.image_trans import center_max_crop, posrot_to_transform, invert_transform, trans_path_to_xy
@@ -12,7 +16,7 @@ from DroneLoc.utils.image_trans import center_max_crop, posrot_to_transform, inv
 np.set_printoptions(precision=4)
 
 class GES_dataset:
-    def __init__(self, path="/home/matej/Datasets/DroneLoc/Test1_Ljubljana_150m_80fov_90deg"):
+    def __init__(self, path="/home/matej/Datasets/DroneLoc/Train10_Venice_150m_80fov_90deg_3000"):
         
         # Load the folders
         self.path = Path(path)
@@ -69,7 +73,9 @@ class GES_dataset:
 
     def load_dataset(self):
         
+        list = []
         images = []
+        prev_position = np.array([0,0,0])
         for n in range(self.num_images+1):
             img = {'path':str(self.image_folder / f"{self.image_prefix}_{n:04}.jpeg"),
                    'position':(self.anno['cameraFrames'][n]['position']['x'],
@@ -81,6 +87,18 @@ class GES_dataset:
                    'coordinates':(self.anno['cameraFrames'][n]['coordinate']['latitude'],
                                   self.anno['cameraFrames'][n]['coordinate']['longitude'],
                                   self.anno['cameraFrames'][n]['coordinate']['altitude'])}
+            
+            dist = np.linalg.norm(prev_position - np.array(img['position']))
+                                  
+            if dist >= 80:
+                print('GOOD DISTANCE', img['path'])
+                shutil.copyfile(img['path'], img['path'].replace('footage','footage_50m'))
+                prev_position = np.array(img['position'])
+
+            else:
+                print('BAD DISTANCE', img['path'])
+
+            
             images.append(img)
         return images
 
@@ -109,6 +127,7 @@ class GES_dataset:
             img = self.images[n]
             x, y, z = img['position']
             rx, ry, rz = img['rotation']
+            lat, lon, alt = img['coordinates']
 
             GT1 = posrot_to_transform((x,y,z),(rx,ry,rz))
             delta_gt = invert_transform(GT0) @ GT1
@@ -117,8 +136,8 @@ class GES_dataset:
 
             floating_transform = floating_transform @ delta_gt
 
-            print('relative position of next camera frame')
-            print(delta_gt)
+            print('Distance to next camera frame')
+            print(np.linalg.norm(delta_gt[:3,3]), alt)
 
             # return
 
@@ -135,27 +154,15 @@ if __name__ == "__main__":
 
     transforms, gt0 = ds.trans_to_gt0()
 
-    xs = [c[0,3] for c in transforms]
-    ys = [c[1,3] for c in transforms]
-    zs = [c[2,3] for c in transforms]
+    tm = TransformManager()
 
-    plt.plot(xs, ys)
+    for n in range(10):
+        print(transforms[n][:3,3])
+        trans = pt.transform_from(transforms[n][:3,:3], transforms[n][:3,3]/100)
+        tm.add_transform('gt0',f'gt{n}', trans)
+
+    ax = tm.plot_frames_in("gt0", s=1)
+    ax.set_xlim((-100, 100))
+    ax.set_ylim((-100, 100))
+    ax.set_zlim((-100, 100))
     plt.show()
-
-    plt.plot(zs)
-    plt.show()
-
-    # lats = [x['coordinates'][0] for x in ds.images]
-    # lons = [x['coordinates'][1] for x in ds.images]
-    # alts = [x['coordinates'][2] for x in ds.images]
-    # plt.plot(lons, lats)
-    # plt.plot(alts)
-    # plt.show()
-
-    # lat, lon, alt = anno['coordinates']
-    # x, y, z = anno['position']
-    # print('Original lat, lon, alt', anno['coordinates'])
-    # print('Original x, y, z', anno['position'])
-
-    # print('Converted x, y, z', ds.lla_to_ecef(lat, lon, alt))
-    # print('Converted lat, lon, alt', ds.ecef_to_lla(x, y, z))
