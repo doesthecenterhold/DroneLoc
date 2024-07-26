@@ -4,6 +4,9 @@ import cv2
 import matplotlib.pyplot as plt
 import pickle
 from scipy.spatial.transform import Rotation as RSCI
+import matplotlib as mpl
+import matplotlib.cm as cm
+# from colorspacious import cspace_converter
 sys.path.append('../')
 
 from DroneLoc.datasets.GES_dataset import GES_dataset
@@ -19,9 +22,13 @@ def scale_keypoints(keypoints, hw_kpts=HWK, hw_imgs=HWI):
     return scaled_keypoints
 
 def draw_keypoints(image, keypoints):
-    for keypoint in keypoints:   
-        cv2.circle(image, np.int32(keypoint), 5, color=(0,255,0), thickness=-1)
-
+    n_keypoints = len(keypoints)
+    cmap = cm.get_cmap('viridis')
+    rgb_values = [cmap(i/n_keypoints)[:3] for i in range(n_keypoints)]
+    rgb_norm_vals = [(int(x[0]*255),int(x[1]*255),int(x[2]*255)) for x in rgb_values]
+    
+    for n, keypoint in enumerate(keypoints):   
+        cv2.circle(image, np.int32(keypoint), 3, color=(0,255,0), thickness=-1)
     return image
 
 def draw_matches(joined_image, keys1, keys2, howmany=-1):
@@ -29,21 +36,32 @@ def draw_matches(joined_image, keys1, keys2, howmany=-1):
     #     rnd_inds = np.random.randint(low=0, high=len(keys1), size=howmany)
     #     keys1=keys1[rnd_inds]
     #     keys2=keys2[rnd_inds]
-    fix = np.array([HWI[1], 0])
-    for k1, k2 in zip(keys1, keys2):
+    if howmany==-1:
+        n=len(keys1)
+    else:
+        n=howmany
+
+    fix = np.array([0, HWI[0]])
+
+    for k1, k2 in zip(keys1[:n], keys2[:n]):
         cv2.line(joined_image, np.int32(k1), np.int32(k2) + fix, color=(0,0,255), thickness=1)
 
     return joined_image
 
 # Load dataset
 image_step = 1
-dataset = GES_dataset('/home/matej/Datasets/DroneLoc/Test1_Ljubljana_150m_80fov_90deg_3000')
+# dataset = GES_dataset('/home/matej/Datasets/DroneLoc/Test1_Ljubljana_150m_80fov_90deg_3000')
+
+dataset = GES_dataset('/home/matej/Datasets/DroneLoc/Train10_Venice_150m_80fov_90deg_3000')
 
 # Load results
 # src_pts = pickle.load('/home/matej/Programs/DroneLoc/data/Test1_Ljubljana_150m_80fov_90deg_3000/src_points.pkl')
 
-src_pts = np.load('/home/matej/Programs/DroneLoc/data/Test1_Ljubljana_150m_80fov_90deg_3000/src_points.pkl', allow_pickle=True)
-dst_pts = np.load('/home/matej/Programs/DroneLoc/data/Test1_Ljubljana_150m_80fov_90deg_3000/dst_points.pkl', allow_pickle=True)
+# src_pts = np.load('/home/matej/Programs/DroneLoc/data/Test1_Ljubljana_150m_80fov_90deg_3000/src_points.pkl', allow_pickle=True)
+# dst_pts = np.load('/home/matej/Programs/DroneLoc/data/Test1_Ljubljana_150m_80fov_90deg_3000/dst_points.pkl', allow_pickle=True)
+
+src_pts = np.load('/home/matej/Programs/DroneLoc/data/new/roma/Train10_Venice_150m_80fov_90deg_3000/src_points.pkl', allow_pickle=True)
+dst_pts = np.load('/home/matej/Programs/DroneLoc/data/new/roma/Train10_Venice_150m_80fov_90deg_3000/dst_points.pkl', allow_pickle=True)
 
 K = np.array([[643.97, 0, 960], [0, 643.97, 540], [0, 0, 1]])
 
@@ -62,7 +80,9 @@ error_x = []
 error_y = []
 error_z = []
 
-for n in range(image_step, 3000, image_step):
+start1 = 15
+start2 = 50
+for n in range(640, 3000, image_step):
 
     # Load consecutive images
     img_first = dataset[n-image_step]
@@ -94,27 +114,39 @@ for n in range(image_step, 3000, image_step):
 
     ### Visualize Keypoints
     # Load actual images
-    # first = cv2.imread(img_first['path']) 
-    # second = cv2.imread(img_second['path'])
+    first = cv2.imread(img_first['path']) 
+    second = cv2.imread(img_second['path'])
 
-    # # Convert from BGR to RGB to plot with plt  
-    # first = cv2.cvtColor(first, cv2.COLOR_BGR2RGB)
-    # second = cv2.cvtColor(second, cv2.COLOR_BGR2RGB)
+    # Convert from BGR to RGB to plot with plt  
+    first = cv2.cvtColor(first, cv2.COLOR_BGR2RGB)
+    second = cv2.cvtColor(second, cv2.COLOR_BGR2RGB)
 
     # # Scale keypoints to original resolution
     # keys_first = scale_keypoints(keys_first)
     # keys_second = scale_keypoints(keys_second)
 
-    # first = draw_keypoints(first, keys_first)
-    # second = draw_keypoints(second, keys_second)
+    first = draw_keypoints(first, keys_first)
+    second = draw_keypoints(second, keys_second)
 
-    # joined_images = np.concatenate([first, second], axis=1)
-    # joined_images = draw_matches(joined_images, keys_first, keys_second)
+    joined_images = np.concatenate([first, second], axis=0)
+    joined_images = draw_matches(joined_images, keys_first, keys_second, howmany=200)
 
-    # E, inliers = cv2.findEssentialMat(keys_second, keys_first,K,method=cv2.RANSAC,
-    #                                   prob=0.99999,threshold=1.0,maxIters=10000)
-    
-    # E, inliers = cv2.findEssentialMat(keys_second, keys_first,K,method=cv2.USAC_MAGSAC, threshold=1)
+    # for i in range(10):
+
+    #     seed = np.random.randint(1000)
+    #     print('setting seed', seed)
+    #     cv2.setRNGSeed(seed)
+
+    #     E, inliers = cv2.findEssentialMat(keys_second, keys_first,K,method=cv2.RANSAC,
+    #                                     prob=0.99999,threshold=1.0,maxIters=10000)
+    #     print('RANSAC Essential matrix extimated with inliers ratio', np.sum(inliers),  np.sum(inliers)/len(inliers))
+        
+    #     cv2.setRNGSeed(seed)
+    #     E, inliers = cv2.findEssentialMat(keys_second, keys_first,K,method=cv2.USAC_MAGSAC, threshold=1)
+    #     print('MAGSAC Essential matrix extimated with inliers ratio', np.sum(inliers),  np.sum(inliers)/len(inliers))
+
+    # break
+
     # num_inliers, R, T, mask_pose = cv2.recoverPose(E, keys_second[inliers.ravel() == 1], keys_first[inliers.ravel() == 1], K)
 
     # # Input GT translation length
@@ -140,9 +172,11 @@ for n in range(image_step, 3000, image_step):
 
     # print('gt angles', t_x_a, t_y_a, t_z_a)
 
-    # print('Essential matrix extimated with inliers ratio', np.sum(inliers)/len(inliers))
-    # # plt.imshow(joined_images)
-    # # plt.show()
+    # cv2.imwrite(f'/home/matej/Programs/DroneLoc/data/new/roma/matches_{n}_venice.png', joined_images)
+    joined_images_bgr = cv2.cvtColor(joined_images, cv2.COLOR_RGB2BGR)
+    cv2.imwrite(f'/home/matej/Programs/DroneLoc/data/new/roma/matches_viz/matches_{n}_venice.png', joined_images_bgr)
+    # plt.imshow(joined_images)
+    # plt.show()
 
     # OdomT = OdomT @ T01
 

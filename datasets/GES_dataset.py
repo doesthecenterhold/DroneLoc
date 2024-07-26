@@ -90,13 +90,17 @@ class GES_dataset:
             
             dist = np.linalg.norm(prev_position - np.array(img['position']))
                                   
-            if dist >= 80:
-                print('GOOD DISTANCE', img['path'])
-                shutil.copyfile(img['path'], img['path'].replace('footage','footage_50m'))
+            if dist < 70:
+                continue
+            else:
+
+            #     print('GOOD DISTANCE', img['path'])
+            #     shutil.copyfile(img['path'], img['path'].replace('footage','footage_50m'))
                 prev_position = np.array(img['position'])
 
-            else:
-                print('BAD DISTANCE', img['path'])
+
+            # else:
+            #     print('BAD DISTANCE', img['path'])
 
             
             images.append(img)
