@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import csv
+import cv2
 import sys
 import pyproj
 import pymap3d as pm
@@ -44,7 +45,7 @@ class VPAir_dataset:
         self.image_folder = None
         self.anno_json = None
         for ppath in self.path.iterdir():
-            if ppath.is_dir():
+            if ppath.is_dir() and not 'undistorted' in str(ppath):
                 self.image_folder = ppath
             elif ppath.suffix == ".csv":
                 self.anno_csv = ppath
@@ -77,8 +78,17 @@ class VPAir_dataset:
         self.K = np.array([[750.62614972, 0, 402.41007535],
                            [0, 750.26301185, 292.98832147],
                            [0, 0, 1]])
+        
+
+        self.T_cam_imu = np.array([[0.012858067322034039, 0.9999102686262149, -0.0037582975656914553, -0.013410258642810948],
+                                   [-0.9999169997865642, 0.012861034406219052, 0.0007663757808519512, 0.022027794132179236],
+                                   [0.0008146426072014672, 0.003748131514807178, 0.9999926439067288, -0.2116875787833756],
+                                   [0.0, 0.0, 0.0, 1.0]])
+
+        self.distM = np.array([-0.11592226392258145, 0.1332261251415265, -0.00043977637330175616, 0.0002380609784102606])
 
         print('The dataset has been loaded!')
+
 
     def __len__(self):
         return len(self.images)
@@ -128,6 +138,15 @@ class VPAir_dataset:
 if __name__ == "__main__":
 
     ds = VPAir_dataset()
+    for img in ds.images:
+        pt = img['path']
+        img = cv2.imread(pt)
+        newcameramatrix, _ = cv2.getOptimalNewCameraMatrix(ds.K, ds.distM, (800, 600), 1, (800, 600))
+        new_img = cv2.undistort(img, ds.K, ds.distM, None, newcameramatrix)
+        print(newcameramatrix)
+        pt.replace('queries', 'queries_undistorted')
+        print(pt)
+        cv2.imwrite(pt, new_img)
 
     anno = ds.images[0]
     la0, lo0, alt0 = anno['coordinates']
@@ -136,10 +155,13 @@ if __name__ == "__main__":
     # no, ea, do = pm.geodetic2ned(la0, lo0, alt0, la0, lo0, alt0)
     # GT0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
     rot90 = posrot_to_transform((0,0,0),(0,0,-np.pi/2))
+    print(rot90)
 
     xs = []
     ys = []
     zs = []
+
+    transforms = []
 
     for anno in ds.images:
         lat, lon, alt = anno['coordinates']
@@ -148,13 +170,25 @@ if __name__ == "__main__":
 
         # print(no, ea, do)
         GT_in0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
-        GT_in0 = rot90 @ GT_in0
+        GT_in0 = ds.T_cam_imu @ GT_in0
+
+        transforms.append(GT_in0)
 
         # print(GT_in0)
 
         xs.append(GT_in0[0,3])
         ys.append(GT_in0[1,3])
         zs.append(GT_in0[2,3])
+
+
+    for n in range(1, len(transforms)):
+
+        gt0 = transforms[n-1]
+        gt1 = transforms[n]
+
+        gt01 = invert_transform(gt0) @ gt1
+
+        print(gt01)
 
     # plt.plot(xs, ys)
     # plt.show()
