@@ -128,12 +128,13 @@ class VPAir_dataset:
 if __name__ == "__main__":
 
     ds = VPAir_dataset()
+
     anno = ds.images[0]
     la0, lo0, alt0 = anno['coordinates']
     roll, pitch, yaw = anno['rotation']
 
-    no, ea, do = pm.geodetic2ned(la0, lo0, alt0, la0, lo0, alt0)
-    GT0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
+    # no, ea, do = pm.geodetic2ned(la0, lo0, alt0, la0, lo0, alt0)
+    # GT0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
     rot90 = posrot_to_transform((0,0,0),(0,0,-np.pi/2))
 
     xs = []
@@ -148,6 +149,7 @@ if __name__ == "__main__":
         # print(no, ea, do)
         GT_in0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
         GT_in0 = rot90 @ GT_in0
+
         # print(GT_in0)
 
         xs.append(GT_in0[0,3])
@@ -161,6 +163,7 @@ if __name__ == "__main__":
     
     lats = [x['coordinates'][0] for x in ds.images]
     lons = [x['coordinates'][1] for x in ds.images]
+    alts = [x['coordinates'][2] for x in ds.images]
 
     # plt.plot(lons, lats)
     # plt.show()
@@ -171,6 +174,12 @@ if __name__ == "__main__":
     axs[1].plot(xs, ys)
     plt.show()
 
+
+    fig, axs = plt.subplots(2)
+    fig.suptitle('Vertically stacked subplots')
+    axs[0].plot(alts)
+    axs[1].plot(zs)
+    plt.show()
 
     lat, lon, alt = anno['coordinates']
     x, y, z = anno['position']
