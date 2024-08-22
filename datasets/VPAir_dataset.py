@@ -1,9 +1,15 @@
 import numpy as np
 import json
 import csv
+import sys
 import pyproj
+import pymap3d as pm
 import matplotlib.pyplot as plt
 from pathlib import Path
+
+
+sys.path.append('../')
+from DroneLoc.utils.image_trans import center_max_crop, posrot_to_transform, invert_transform, trans_path_to_xy
 
 
 def rotation_towards_center(x,y,z):
@@ -28,6 +34,7 @@ def rotation_towards_center(x,y,z):
     R[:3,:3] = R3
 
     return R
+
 
 class VPAir_dataset:
     def __init__(self, path="/home/matej/Datasets/DroneLoc/VPAir"):
@@ -97,6 +104,16 @@ class VPAir_dataset:
             images.append(img)
 
         return images
+    
+    def get_vector_towards_earth_center(self, lat, lon, alt):
+        alt2 = alt-1
+
+        x1, y1, z1 = self.lla_to_ecef(lat, lon, alt)
+        x2, y2, z2 = self.lla_to_ecef(lat, lon, alt2)
+
+        x, y, z = x1-x2, y1-y2, z1-z2
+
+        return x, y, z
 
     def lla_to_ecef(self, lat, lon, alt):
         #TODO fix function
@@ -108,21 +125,58 @@ class VPAir_dataset:
         lon, lat, alt = self.ecef_to_lla_trans.transform(x, y, z, radians=False)
         return lat, lon, alt
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
 
-    # ds = GES_dataset()
-    # anno = ds.images[0]
+    ds = VPAir_dataset()
+    anno = ds.images[0]
+    la0, lo0, alt0 = anno['coordinates']
+    roll, pitch, yaw = anno['rotation']
 
-    # lats = [x['coordinates'][0] for x in ds.images]
-    # lons = [x['coordinates'][1] for x in ds.images]
+    no, ea, do = pm.geodetic2ned(la0, lo0, alt0, la0, lo0, alt0)
+    GT0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
+    rot90 = posrot_to_transform((0,0,0),(0,0,-np.pi/2))
+
+    xs = []
+    ys = []
+    zs = []
+
+    for anno in ds.images:
+        lat, lon, alt = anno['coordinates']
+        roll, pitch, yaw = anno['rotation']
+        no, ea, do = pm.geodetic2ned(lat, lon, alt, la0, lo0, alt0)
+
+        # print(no, ea, do)
+        GT_in0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
+        GT_in0 = rot90 @ GT_in0
+        # print(GT_in0)
+
+        xs.append(GT_in0[0,3])
+        ys.append(GT_in0[1,3])
+        zs.append(GT_in0[2,3])
+
+    # plt.plot(xs, ys)
+    # plt.show()
+    # plt.plot(zs)
+    # plt.show()
+    
+    lats = [x['coordinates'][0] for x in ds.images]
+    lons = [x['coordinates'][1] for x in ds.images]
 
     # plt.plot(lons, lats)
     # plt.show()
 
-    # lat, lon, alt = anno['coordinates']
-    # x, y, z = anno['position']
-    # print('Original lat, lon, alt', anno['coordinates'])
-    # print('Original x, y, z', anno['position'])
+    fig, axs = plt.subplots(2)
+    fig.suptitle('Vertically stacked subplots')
+    axs[0].plot(lons, lats)
+    axs[1].plot(xs, ys)
+    plt.show()
 
-    # print('Converted x, y, z', ds.lla_to_ecef(lat, lon, alt))
-    # print('Converted lat, lon, alt', ds.ecef_to_lla(x, y, z))
+
+    lat, lon, alt = anno['coordinates']
+    x, y, z = anno['position']
+
+    print('Original lat, lon, alt', anno['coordinates'])
+    print('Original x, y, z', anno['position'])
+
+    print('Converted x, y, z', ds.lla_to_ecef(lat, lon, alt))
+    print('Converted lat, lon, alt', ds.ecef_to_lla(x, y, z))

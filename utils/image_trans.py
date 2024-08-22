@@ -16,7 +16,7 @@ def center_max_crop(image):
     return cropped_image
 
 def posrot_to_transform(pos, rot, Rot=None):
-    R1 = R.from_euler('XYZ', [rot], degrees=True)
+    R1 = R.from_euler('XYZ', [rot], degrees=False)
     R1 = R1.as_matrix()
 
     T1 = np.eye(4)

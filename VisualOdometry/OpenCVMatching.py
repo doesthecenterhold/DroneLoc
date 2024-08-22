@@ -12,7 +12,7 @@ from DroneLoc.utils.image_trans import center_max_crop, posrot_to_transform, inv
 from DroneLoc.utils.math import isRotationMatrix, rotationMatrixToEulerAngles # type: ignore
 from DroneLoc.utils.math import unit_vector, angle_vector
 
-dataset = GES_dataset()
+dataset = VPAir_dataset()
 K = dataset.K
 
 image_step = 1
@@ -153,12 +153,12 @@ for n in range(image_step, 200, image_step):
     else:
         print('Not enough good matches, skipping frames!')
     
-    # result_img = cv2.drawMatchesKnn(first,kp1,second,kp2,matches,None)
-    # result_img = cv2.drawMatches(first,kp1,second,kp2,good_matches_s,None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    result_img = cv2.drawMatchesKnn(first,kp1,second,kp2,matches,None)
+    result_img = cv2.drawMatches(first,kp1,second,kp2,good_matches_s,None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
 
     
-    # plt.imshow(result_img)
-    # plt.show()
+    plt.imshow(result_img)
+    plt.show()
 
 gt = trans_path_to_xy(gt_transforms)
 est = trans_path_to_xy(est_transforms)
