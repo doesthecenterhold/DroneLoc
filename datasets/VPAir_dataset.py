@@ -6,6 +6,7 @@ import sys
 import pyproj
 import pymap3d as pm
 import matplotlib.pyplot as plt
+from scipy.spatial.transform import Rotation as R
 from pathlib import Path
 
 
@@ -134,25 +135,87 @@ class VPAir_dataset:
         #TODO fix function
         lon, lat, alt = self.ecef_to_lla_trans.transform(x, y, z, radians=False)
         return lat, lon, alt
+    
+    def geodetic2ecef(self, lat, lon, h):
+
+        lat = np.radians(lat)
+        lon = np.radians(lon)
+
+        # WGS-84 ellipsoid parameters
+        a = 6378137.0              # Semi-major axis (m)
+        f = 1 / 298.257223563      # Flattening
+        e2 = f * (2 - f)           # Eccentricity squared
+        
+        sin_lat = np.sin(lat)
+        cos_lat = np.cos(lat)
+        sin_lon = np.sin(lon)
+        cos_lon = np.cos(lon)
+        
+        N = a / np.sqrt(1 - e2 * sin_lat**2)
+        X = (N + h) * cos_lat * cos_lon
+        Y = (N + h) * cos_lat * sin_lon
+        Z = (N * (1 - e2) + h) * sin_lat
+
+        return X, Y, Z
+    
+    def ecef2ned_euler_angles(self, ax, ay, az, lat, lon):
+        """
+        Convert Euler angles from ECEF to NED frame.
+        :param ecef_euler: [roll, pitch, yaw] in radians (ECEF frame)
+        :param lat: Geodetic latitude in radians
+        :param lon: Longitude in radians
+        :return: [roll, pitch, yaw] in radians (NED frame)
+        """
+
+        ecef_euler = [ax, ay, az]
+
+        # Step 1: Convert ECEF Euler angles to rotation matrix
+        r_ecef = R.from_euler('ZYX', ecef_euler, degrees=False).as_matrix()
+        
+        # Step 2: Compute ECEF-to-NED rotation matrix
+        sin_lat = np.sin(lat)
+        cos_lat = np.cos(lat)
+        sin_lon = np.sin(lon)
+        cos_lon = np.cos(lon)
+        
+        R_ecef2ned = np.array([
+            [-sin_lat * cos_lon, -sin_lat * sin_lon, cos_lat],
+            [-sin_lon,            cos_lon,          0],
+            [-cos_lat * cos_lon, -cos_lat * sin_lon, -sin_lat]
+        ])
+        
+        # Step 3: Rotate the ECEF rotation matrix to NED frame
+        r_ned = R_ecef2ned @ r_ecef
+        
+        # Step 4: Convert NED rotation matrix back to Euler angles
+        ned_euler = R.from_matrix(r_ned).as_euler('ZYX', degrees=False)
+
+        return ned_euler
+    
+
 
 if __name__ == "__main__":
 
     ds = VPAir_dataset()
-    for img in ds.images:
-        pt = img['path']
-        img = cv2.imread(pt)
-        newcameramatrix, _ = cv2.getOptimalNewCameraMatrix(ds.K, ds.distM, (800, 600), 1, (800, 600))
-        new_img = cv2.undistort(img, ds.K, ds.distM, None, newcameramatrix)
-        print(newcameramatrix)
-        pt.replace('queries', 'queries_undistorted')
-        print(pt)
-        cv2.imwrite(pt, new_img)
+    # for img in ds.images:
+    #     pt = img['path']
+    #     img = cv2.imread(pt)
+    #     newcameramatrix, _ = cv2.getOptimalNewCameraMatrix(ds.K, ds.distM, (800, 600), 1, (800, 600))
+    #     new_img = cv2.undistort(img, ds.K, ds.distM, None, newcameramatrix)
+    #     print(newcameramatrix)
+    #     pt.replace('queries', 'queries_undistorted')
+    #     print(pt)
+    #     cv2.imwrite(pt, new_img)
 
     anno = ds.images[0]
+    x, y, z = anno['position']
     la0, lo0, alt0 = anno['coordinates']
     roll, pitch, yaw = anno['rotation']
 
-    # no, ea, do = pm.geodetic2ned(la0, lo0, alt0, la0, lo0, alt0)
+    print('')
+
+    N1, E1, D1 = pm.geodetic2ned(la0, lo0, alt0, la0, lo0, alt0)
+    N, E, D = pm.ecef2ned(x,y,z,la0,lo0,0)
     # GT0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
     rot90 = posrot_to_transform((0,0,0),(0,0,-np.pi/2))
     print(rot90)
@@ -163,63 +226,68 @@ if __name__ == "__main__":
 
     transforms = []
 
-    for anno in ds.images:
-        lat, lon, alt = anno['coordinates']
-        roll, pitch, yaw = anno['rotation']
-        no, ea, do = pm.geodetic2ned(lat, lon, alt, la0, lo0, alt0)
+    # for anno in ds.images:
+    #     lat, lon, alt = anno['coordinates']
+    #     roll, pitch, yaw = anno['rotation']
+    #     no, ea, do = pm.geodetic2ned(lat, lon, alt, la0, lo0, alt0)
 
-        # print(no, ea, do)
-        GT_in0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
-        GT_in0 = ds.T_cam_imu @ GT_in0
+    #     # print(no, ea, do)
+    #     GT_in0 = posrot_to_transform((no, ea, do), (roll, pitch, yaw))
+    #     GT_in0 = ds.T_cam_imu @ GT_in0
 
-        transforms.append(GT_in0)
+    #     transforms.append(GT_in0)
 
-        # print(GT_in0)
+    #     # print(GT_in0)
 
-        xs.append(GT_in0[0,3])
-        ys.append(GT_in0[1,3])
-        zs.append(GT_in0[2,3])
+    #     xs.append(GT_in0[0,3])
+    #     ys.append(GT_in0[1,3])
+    #     zs.append(GT_in0[2,3])
 
 
-    for n in range(1, len(transforms)):
+    # for n in range(1, len(transforms)):
 
-        gt0 = transforms[n-1]
-        gt1 = transforms[n]
+    #     gt0 = transforms[n-1]
+    #     gt1 = transforms[n]
 
-        gt01 = invert_transform(gt0) @ gt1
+    #     gt01 = invert_transform(gt0) @ gt1
 
-        print(gt01)
+    #     print(gt01)
 
     # plt.plot(xs, ys)
     # plt.show()
     # plt.plot(zs)
     # plt.show()
     
-    lats = [x['coordinates'][0] for x in ds.images]
-    lons = [x['coordinates'][1] for x in ds.images]
-    alts = [x['coordinates'][2] for x in ds.images]
+    # lats = [x['coordinates'][0] for x in ds.images]
+    # lons = [x['coordinates'][1] for x in ds.images]
+    # alts = [x['coordinates'][2] for x in ds.images]
 
-    # plt.plot(lons, lats)
+    # # plt.plot(lons, lats)
+    # # plt.show()
+
+    # fig, axs = plt.subplots(2)
+    # fig.suptitle('Vertically stacked subplots')
+    # axs[0].plot(lons, lats)
+    # axs[1].plot(xs, ys)
     # plt.show()
 
-    fig, axs = plt.subplots(2)
-    fig.suptitle('Vertically stacked subplots')
-    axs[0].plot(lons, lats)
-    axs[1].plot(xs, ys)
-    plt.show()
 
-
-    fig, axs = plt.subplots(2)
-    fig.suptitle('Vertically stacked subplots')
-    axs[0].plot(alts)
-    axs[1].plot(zs)
-    plt.show()
+    # fig, axs = plt.subplots(2)
+    # fig.suptitle('Vertically stacked subplots')
+    # axs[0].plot(alts)
+    # axs[1].plot(zs)
+    # plt.show()
 
     lat, lon, alt = anno['coordinates']
     x, y, z = anno['position']
+    ax, ay, az = anno['rotation']
 
     print('Original lat, lon, alt', anno['coordinates'])
-    print('Original x, y, z', anno['position'])
+    print('Converted lat, lon, alt', pm.ecef2geodetic(x,y,z))
 
-    print('Converted x, y, z', ds.lla_to_ecef(lat, lon, alt))
-    print('Converted lat, lon, alt', ds.ecef_to_lla(x, y, z))
+    print('Original x, y, z', anno['position'])
+    print('Converted x, y, z', pm.geodetic2ecef(lat, lon, alt))
+    print('Custom converted x, y, z', ds.geodetic2ecef(lat, lon, alt))
+
+    print('Original orientation', ax, ay, az)
+    print('NED orientation', ds.ecef2ned_euler_angles(ax, ay, az, lat, lon))
